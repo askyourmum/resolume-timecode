@@ -100,28 +100,35 @@ function main(){
     }
 
     function procTime(data) {
-        // args: [0]=remaining string, [1]=clip length string, [2]=elapsed string, [3]=clip length float
+        // args: [0]=remaining string, [1]=clip length string, [2]=elapsed string
         const remainStr  = data.args[0];  // e.g. "-00:01:23.456"
         const lengthStr  = data.args[1];  // e.g. "83.456s"
         const elapsedStr = data.args[2];  // e.g. "+00:00:12.000"
-        const lengthSecs = data.args[3];  // float seconds
 
         // Legacy settings panel clip length
         clipLength.innerHTML = lengthStr;
 
         // Info panel
-        infoElapsed.innerHTML   = elapsedStr;
+        infoElapsed.innerHTML   = elapsedStr  !== undefined ? elapsedStr  : "+00:00:00.000";
         infoRemaining.innerHTML = remainStr;
         infoTotal.innerHTML     = lengthStr;
 
-        // Main timecode display (remaining, same as before)
+        // Main timecode display (remaining, same as original)
+        // remainStr format: "-HH:MM:SS.mmm"
         const parts = remainStr.split(":");
-        timecodeHours.innerHTML   = parts[0].substring(1);      // strip leading '-'
-        timecodeMinutes.innerHTML = parts[1];
-        timecodeSeconds.innerHTML = parts[2].split(".")[0];
-        timecodeMS.innerHTML      = parts[2].split(".")[1];
+        const hPart = parts[0].substring(1);   // strip leading '-'
+        const mPart = parts[1];
+        const sPart = parts[2].split(".")[0];
+        const msPart = parts[2].split(".")[1];
 
-        if (parseInt(parts[2]) <= 10 && parseInt(parts[1]) < 1 && parseInt(parts[0].substring(1)) < 1) {
+        timecodeHours.innerHTML   = hPart;
+        timecodeMinutes.innerHTML = mPart;
+        timecodeSeconds.innerHTML = sPart;
+        timecodeMS.innerHTML      = msPart;
+
+        // Flash red when under 10 seconds remaining
+        const totalSecsLeft = parseInt(hPart) * 3600 + parseInt(mPart) * 60 + parseInt(sPart);
+        if (totalSecsLeft <= 10) {
             table.style.color = "#ff4545";
             tableBorder.style.borderColor = "#ff4545";
         } else {
