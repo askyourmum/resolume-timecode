@@ -66,23 +66,22 @@ func procMsg(data *osc.Message) {
 		}
 	}
 
-	// Same-layer track mode: intercept /select on any clip path and only
-	// follow if the newly selected clip is on the same layer as the current one.
-	// Cross-layer fires are ignored — the timer keeps running for the current clip.
+	// Same-layer track mode: intercept /select on any clip path.
+	// Always reset the timer on any grid selection so the display clears.
+	// Only switch clipPath (i.e. start tracking the new clip) if it is
+	// on the same layer as the current clip — cross-layer fires reset
+	// the timer but do not change which clip is being tracked.
 	if sameLayerTrack && strings.Contains(data.Address, "/clips/") && strings.HasSuffix(data.Address, "/select") {
 		newClipPath := strings.TrimSuffix(data.Address, "/select")
-		if newClipPath != clipPath {
-			currentLayer := layerNum(clipPath)
-			newLayer := layerNum(newClipPath)
-			// Only follow if same layer, OR if no current layer is set yet
-			if currentLayer == "" || currentLayer == newLayer {
-				clipPath = newClipPath
-				clipSwitched = true
-				reset()
-				lightReset()
-			}
-			// Different layer — silently ignore, timer keeps counting
+		currentLayer := layerNum(clipPath)
+		newLayer := layerNum(newClipPath)
+		if currentLayer == "" || currentLayer == newLayer {
+			// Same layer — switch tracking to the new clip and reset
+			clipPath = newClipPath
+			clipSwitched = true
 		}
+		// Always reset regardless of layer — clears the display on any grid click
+		reset()
 		return
 	}
 
