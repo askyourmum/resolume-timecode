@@ -29,18 +29,6 @@ jobs:
       - name: Install Packages
         run: brew install mingw-w64 upx librsvg
 
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/go
-            ~/.cache/go-build
-            ~/Library/Caches/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-            ${{ runner.os }}-go-
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
