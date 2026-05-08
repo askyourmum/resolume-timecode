@@ -69,9 +69,7 @@ archives:
     builds:
       - darwin
     format: zip
-    wrap_in_directory: true
-    replacements:
-      darwin: macOS
+    name_template: '{{ .ProjectName }}_macOS_{{ .Arch }}'
     files:
       - LICENSE
       - README.MD
@@ -80,4 +78,4 @@ archives:
     builds:
       - windows
     format: zip
-    wrap_in_directory: true
+    name_template: '{{ .ProjectName }}_Windows_{{ .Arch }}'
