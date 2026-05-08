@@ -1,7 +1,7 @@
 project_name: resolume-timecode
 before:
   hooks:
-    - go mod download
+    - go mod tidy
     - bash -c "rsvg-convert -h 32 images/logo.svg > images/favicon.png"
     - bash -c "rsvg-convert -h 256 images/logo.svg > images/logo.png"
 builds:
@@ -13,7 +13,7 @@ builds:
     env:
       - CGO_ENABLED=1
     flags:
-      - -mod=readonly
+      - -mod=mod
       - -trimpath
     ldflags:
       - -s -w
@@ -35,7 +35,7 @@ builds:
       - CC=x86_64-w64-mingw32-gcc
       - CXX=x86_64-w64-mingw32-g++
     flags:
-      - -mod=readonly
+      - -mod=mod
       - -trimpath
     ldflags:
       - -s -w
