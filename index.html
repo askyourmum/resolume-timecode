@@ -5,177 +5,213 @@
     <title>Timecode Monitor</title>
 
     <link rel="icon" type="image/png" href="images/favicon.png">
-
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100;400;600&display=swap" rel="stylesheet">
 
     <style>
+        * { box-sizing: border-box; }
+
         body {
             background-color: #000000;
             color: #FDFBF7;
             font-family: 'Roboto Mono', monospace;
             font-size: 1em;
-            text-align:center;
+            text-align: center;
+            margin: 0;
+            padding: 0;
         }
 
-        a {
-            color: #2494ff;
+        a { color: #2494ff; }
+        label { margin-right: 1em; }
+
+        /* ── Clip Name (above card) ── */
+        #clip-name-row {
+            padding: 0.4em 1em 0.2em;
+            cursor: ns-resize;
+            user-select: none;
+            line-height: 1.2;
+        }
+        #clip-name-row .row-label { color: #888; font-weight: 400; }
+        #clip-name-row .row-value { color: #ffffff; font-weight: 600; }
+
+        /* ── Card boundary ── */
+        #tableborder {
+            border: 6px solid #4b5457;
+            border-radius: 40px;
+            background-color: #111417;
+            margin: 0.4em 2em 1em;
+            padding: 0.6em 0 0.8em;
+            overflow: hidden;
         }
 
-        label {
-            margin-right: 1em;
-        }
-
-        .number {
-            font-weight: 100;
-        }
-
-        #system-clock {
-            font-size: 3.33vw;
-            font-weight: 100;
-            letter-spacing: 0.05em;
-            color: #aaaaaa;
-            margin: 0.2em 0 0.1em 0;
-        }
-
-        .info-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 0.3em;
-        }
-
-        .info-table td {
+        /* ── Info rows inside card ── */
+        .info-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
             padding: 0.15em 1.5em;
+            cursor: ns-resize;
+            user-select: none;
+            line-height: 1.15;
         }
+        .info-row:hover { background: rgba(255,255,255,0.03); }
 
-        .info-label {
+        .row-label {
             text-align: right;
             color: #888888;
             font-weight: 400;
             white-space: nowrap;
-            font-size: 2vw;
+            min-width: 9em;
+            padding-right: 0.8em;
         }
-
-        .info-value {
+        .row-value {
             text-align: left;
             font-weight: 100;
-            font-size: 3.33vw;
             letter-spacing: 0.04em;
+            min-width: 12em;
         }
 
         .elapsed-value  { color: #45aaff; }
         .remain-value   { color: #ff9945; }
         .total-value    { color: #aaaaaa; }
+        .clock-value    { color: #aaaaaa; }
+
+        /* scroll hint tooltip */
+        .info-row:hover::after {
+            content: '↕ scroll to resize';
+            font-size: 0.65em;
+            color: #555;
+            margin-left: 1em;
+            font-weight: 400;
+        }
+
+        /* ── Settings panel ── */
+        #settings-panel {
+            text-align: left;
+            margin-left: 2em;
+            margin-top: 1em;
+        }
     </style>
 </head>
 
 <body>
-<p id="msg" style="font-size: 2em;">Timecode Monitor</p>
-<div id="system-clock">--:--:--</div>
-<div id="tableborder" style="border-width: 6px; border-color: #4b5457; border-radius: 40px; border-style: solid; background-color: #111417; margin: 3em;">
-    <p style="font-size: 1.5em; margin-bottom:-.5em;" >Clip Name: <strong id="clipname">None</strong></p>
-    <table style="margin-left: auto; margin-right:auto; padding-bottom: 10px; color: #45ff45;" id="table">
-        <tr style="font-size:10vw;">
-            <td class="minus number">-</td>
-            <td class="hours number" id="timecode-hours">00</td>
-            <td class="hours">:</td>
-            <td class="number" id="timecode-minutes">00</td>
-            <td>:</td>
-            <td class="number" id="timecode-seconds">00</td>
-            <td class="ms">.</td>
-            <td class="ms number" id="timecode-ms">000</td>
-        </tr>
-        <tr style="font-weight: 600;">
-            <td class="minus"></td>
-            <td class="hours">Hours</td>
-            <td class="hours" ></td>
-            <td>Minutes</td>
-            <td></td>
-            <td>Seconds</td>
-            <td class="ms" ></td>
-            <td class="ms">Milliseconds</td>
-        </tr>
-    </table>
 
-    <!-- Clip time info panel -->
-    <table class="info-table">
-        <tr>
-            <td class="info-label">Elapsed</td>
-            <td class="info-value elapsed-value" id="info-elapsed">+00:00:00.000</td>
-        </tr>
-        <tr>
-            <td class="info-label">Remaining</td>
-            <td class="info-value remain-value" id="info-remaining">-00:00:00.000</td>
-        </tr>
-        <tr>
-            <td class="info-label">Clip Length</td>
-            <td class="info-value total-value" id="info-total">0.000s</td>
-        </tr>
-    </table>
+<!-- Clip Name — outside and above the card -->
+<div id="clip-name-row" data-key="clipname">
+    <span class="row-label">Clip Name: </span><span class="row-value" id="clipname">None</span>
 </div>
 
-<details style="text-align: left; margin-left: 3em;">
+<!-- Main card -->
+<div id="tableborder">
+    <div class="info-row" data-key="elapsed">
+        <span class="row-label">Elapsed</span>
+        <span class="row-value elapsed-value" id="info-elapsed">+00:00:00.000</span>
+    </div>
+    <div class="info-row" data-key="remaining">
+        <span class="row-label">Remaining</span>
+        <span class="row-value remain-value" id="info-remaining">-00:00:00.000</span>
+    </div>
+    <div class="info-row" data-key="total">
+        <span class="row-label">Clip Length</span>
+        <span class="row-value total-value" id="info-total">00:00:00.000</span>
+    </div>
+    <div class="info-row" data-key="clock">
+        <span class="row-label">System Time</span>
+        <span class="row-value clock-value" id="system-clock">--:--:--</span>
+    </div>
+</div>
+
+<!-- Settings -->
+<details id="settings-panel">
     <summary style="font-size:1.25em;">Settings</summary>
     <div>Clip Length: <strong id="ms">00:00:00.000</strong></div>
     <div>Server Status: <strong id="status">Server Stopped</strong></div>
     <br/>
     <div>
-    <input type="checkbox" id="checkbox-minus" checked onclick="showHide()">
-    <label for="checkbox-minus">Show minus/plus</label>
-
-    <input type="checkbox" id="checkbox-hours" checked onclick="showHide()">
-    <label for="checkbox-hours">Show Hours</label>
-
-    <input type="checkbox" id="checkbox-ms" checked onclick="showHide()">
-    <label for="checkbox-ms">Show Milliseconds</label>
+        <button onclick="resetSizes()" style="font-family:inherit;padding:0.3em 1em;border-radius:6px;cursor:pointer;background:#222;color:#ccc;border:1px solid #555;">Reset row sizes</button>
     </div>
-    <br />
+    <br/>
     <div>
     <input type="number" id="padding" value="0" min="0" step="1" onchange="updatePadding()" style="width:3em;border-radius:5px;margin-left:2px;">
-    <label style="margin-left:-0.5em;" for="padding">em Padding</label>
+    <label style="margin-left:-0.5em;" for="padding">em Top Padding</label>
     </div>
-    <p>Checkout this tool at <a href="https://github.com/chabad360/resolume-timecode">chabad360/resolume-timecode</a></p>
+    <p>Fork of <a href="https://github.com/chabad360/resolume-timecode">chabad360/resolume-timecode</a></p>
 </details>
 
 <script src="osc.min.js" type="module"></script>
 <script src="main.js" type="module"></script>
 <script type="text/javascript">
-    const checkboxminus = document.getElementById("checkbox-minus");
-    const checkboxhours = document.getElementById("checkbox-hours");
-    const checkboxms = document.getElementById("checkbox-ms");
 
-    let minus = document.getElementsByClassName("minus");
-    let hours = document.getElementsByClassName("hours");
-    let ms = document.getElementsByClassName("ms");
+    // ── Default font sizes in vw ──
+    const DEFAULTS = {
+        clipname:  3.5,
+        elapsed:   5.0,
+        remaining: 5.0,
+        total:     3.5,
+        clock:     3.5,
+    };
 
-    function hide(elem) {
-        for(i = 0; i < elem.length; i++) {
-            elem[i].style.visibility = 'hidden';
-            elem[i].style.display = 'none';
-        }
+    // Min / max clamps in vw
+    const MIN_VW = 1.0;
+    const MAX_VW = 18.0;
+
+    // Load saved sizes from localStorage, fall back to defaults
+    const sizes = {};
+    for (const key in DEFAULTS) {
+        const saved = localStorage.getItem('row-size-' + key);
+        sizes[key] = saved !== null ? parseFloat(saved) : DEFAULTS[key];
     }
 
-    function show(elem) {
-        for(i = 0; i < elem.length; i++) {
-            elem[i].style.visibility = 'visible';
-            elem[i].style.display = 'revert';
+    // Map data-key → the element(s) whose font-size we control
+    // For clipname row, we set on the whole row div.
+    // For others, we set on .row-label and .row-value separately (label = 60% of value).
+    function applySize(key) {
+        const vw = sizes[key];
+        if (key === 'clipname') {
+            const row = document.getElementById('clip-name-row');
+            row.style.fontSize = vw + 'vw';
+        } else {
+            const row = document.querySelector(`.info-row[data-key="${key}"]`);
+            if (!row) return;
+            row.querySelector('.row-label').style.fontSize = (vw * 0.6) + 'vw';
+            row.querySelector('.row-value').style.fontSize = vw + 'vw';
         }
+        localStorage.setItem('row-size-' + key, vw);
     }
 
-    function showHide() {
-        checkboxminus.checked === false ? hide(minus) : show(minus);
-        checkboxhours.checked === false ? hide(hours) : show(hours);
-        checkboxms.checked === false ? hide(ms) : show(ms);
+    // Apply all on load
+    for (const key in sizes) applySize(key);
+
+    // Scroll handler — attach to all scrollable rows
+    function onRowWheel(e) {
+        e.preventDefault();
+        const key = e.currentTarget.dataset.key;
+        if (!key || !(key in sizes)) return;
+        // deltaY > 0 = scroll down = shrink; < 0 = scroll up = grow
+        const delta = e.deltaY > 0 ? -0.2 : 0.2;
+        sizes[key] = Math.min(MAX_VW, Math.max(MIN_VW, sizes[key] + delta));
+        applySize(key);
+    }
+
+    // Attach wheel listeners
+    document.querySelectorAll('.info-row, #clip-name-row').forEach(row => {
+        row.addEventListener('wheel', onRowWheel, { passive: false });
+    });
+
+    function resetSizes() {
+        for (const key in DEFAULTS) {
+            sizes[key] = DEFAULTS[key];
+            applySize(key);
+        }
     }
 
     function updatePadding() {
-        let padding = document.getElementById("padding").value;
-        document.getElementById("msg").style.paddingTop = padding + "em";
+        const padding = document.getElementById('padding').value;
+        document.getElementById('clip-name-row').style.paddingTop = padding + 'em';
     }
 
     updatePadding();
-    showHide();
 </script>
 </body>
 </html>
