@@ -22,7 +22,6 @@ builds:
     mod_timestamp: '{{ .CommitTimestamp }}'
     hooks:
       post:
-        - upx {{ .Path }}
         - sh macos.sh resolume-timecode images/logo.svg "me.chabad360.resolume-timecode" {{ .Major }} {{ .Minor }}
         - cp {{ .Path }} resolume-timecode.app/Contents/MacOS/
   - id: windows
