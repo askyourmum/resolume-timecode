@@ -14,22 +14,38 @@ var (
 
 	timeLeft    string
 	timeElapsed string
+	timeTotal   string
 
-	clipLength  float32
-	posPrev     float32
+	clipLength   float32
+	posPrev      float32
 	clipSwitched = false // true for one cycle after a path switch in auto-track mode
 
 	// autoTrackOutput: when true, procMsg will switch clipPath to whichever
 	// clip sends /connected = 1, so we always follow the live output clip.
 	// Enabled automatically when the configured path ends with "/connectedclip".
 	autoTrackOutput = false
+
+	// sameLayerTrack: when true, /select events only switch clipPath when
+	// the newly selected clip is on the same layer as the current clip.
+	// Enabled when the configured path ends with "/selectedclip" (default selected-clip mode).
+	sameLayerTrack = false
 )
 
+// layerNum extracts the layer number string from an OSC clip path.
+// e.g. "/composition/layers/2/clips/3" → "2", or "" if not parseable.
+func layerNum(path string) string {
+	// path format: /composition/layers/N/clips/M
+	parts := strings.Split(path, "/")
+	for i, p := range parts {
+		if p == "layers" && i+1 < len(parts) {
+			return parts[i+1]
+		}
+	}
+	return ""
+}
+
 func procMsg(data *osc.Message) {
-	// Auto-track output: when enabled, watch ALL clips for /connected=1
-	// and switch clipPath to that clip so we always follow the live output.
-	// On a crossfade/jump, we do NOT reset posPrev — we just swap the path
-	// and re-query name+duration so the timer transitions cleanly.
+	// Auto-track output mode: watch all /connected=1 messages.
 	if autoTrackOutput && strings.HasSuffix(data.Address, "/connected") {
 		if len(data.Arguments) > 0 {
 			var connected int32
@@ -40,18 +56,34 @@ func procMsg(data *osc.Message) {
 				connected = int32(v)
 			}
 			if connected == 1 {
-				// Address is e.g. /composition/layers/2/clips/3/connected
 				newPath := strings.TrimSuffix(data.Address, "/connected")
 				if newPath != clipPath {
 					clipPath = newPath
-					clipSwitched = true // skip the posPrev==pos guard for one cycle
-					// Re-query name and duration for the new clip.
-					// Do NOT reset posPrev — position updates from the new
-					// clip arrive immediately and must not be dropped.
+					clipSwitched = true
 					lightReset()
 				}
 			}
 		}
+	}
+
+	// Same-layer track mode: intercept /select on any clip path and only
+	// follow if the newly selected clip is on the same layer as the current one.
+	// Cross-layer fires are ignored — the timer keeps running for the current clip.
+	if sameLayerTrack && strings.Contains(data.Address, "/clips/") && strings.HasSuffix(data.Address, "/select") {
+		newClipPath := strings.TrimSuffix(data.Address, "/select")
+		if newClipPath != clipPath {
+			currentLayer := layerNum(clipPath)
+			newLayer := layerNum(newClipPath)
+			// Only follow if same layer, OR if no current layer is set yet
+			if currentLayer == "" || currentLayer == newLayer {
+				clipPath = newClipPath
+				clipSwitched = true
+				reset()
+				lightReset()
+			}
+			// Different layer — silently ignore, timer keeps counting
+		}
+		return
 	}
 
 	if strings.HasPrefix(data.Address, clipPath) {
@@ -65,18 +97,11 @@ func procMsg(data *osc.Message) {
 		case strings.HasSuffix(data.Address, "/duration"):
 			procDuration(data)
 		case strings.HasSuffix(data.Address, "/connect"):
-			// Only reset on /connect when NOT in auto-track mode.
-			// In auto-track mode the /connected handler above already
-			// manages clip switches — resetting here would blank the
-			// timer mid-crossfade.
-			if !autoTrackOutput {
+			if !autoTrackOutput && !sameLayerTrack {
 				reset()
 			}
 		case strings.Contains(data.Address, "/select"):
-			// Suppress /select resets in auto-track mode — clicking a clip
-			// in the arena grid while another plays to output must not
-			// blank the timer.
-			if !autoTrackOutput {
+			if !autoTrackOutput && !sameLayerTrack {
 				reset()
 			}
 		}
@@ -96,9 +121,15 @@ func procName(data *osc.Message) {
 	broadcast.Publish(osc.NewMessage("/name", clipName))
 }
 
+func secsToHMS(secs float32) string {
+	t := time.UnixMilli(int64(secs * 1000)).UTC()
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1000000)
+}
+
 func procDuration(data *osc.Message) {
 	clipLength = (data.Arguments[0].(float32) * 604800) + 0.001
-	clipLengthBinding.Set(fmt.Sprintf("Clip Length: %.3fs", clipLength))
+	timeTotal = secsToHMS(clipLength)
+	clipLengthBinding.Set(fmt.Sprintf("Clip Length: %s", timeTotal))
 	broadcast.Publish(osc.NewMessage("/duration", clipLength))
 }
 
@@ -158,8 +189,8 @@ func procPos(data *osc.Message) {
 	timeElapsedActual := time.UnixMilli(int64(tElapsed)).UTC()
 	timeElapsed = fmt.Sprintf("+%02d:%02d:%02d.%03d", timeElapsedActual.Hour(), timeElapsedActual.Minute(), timeElapsedActual.Second(), timeElapsedActual.Nanosecond()/1000000)
 
-	// broadcast: arg0=remaining, arg1=clip length string, arg2=elapsed
-	broadcast.Publish(osc.NewMessage("/time", timeLeft, fmt.Sprintf("%.3fs", clipLength), timeElapsed))
+	// broadcast: arg0=remaining, arg1=clip length HMS, arg2=elapsed
+	broadcast.Publish(osc.NewMessage("/time", timeLeft, timeTotal, timeElapsed))
 	broadcast.Send()
 
 	//fmt.Println(message, clipLength, samples, pos, currentPosInterval, currentTimeInterval, currentEstSize, posInterval, timeInterval, average(estSizeBuffer))

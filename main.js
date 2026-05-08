@@ -55,11 +55,11 @@ function main(){
         timecodeMinutes.innerHTML = "00";
         timecodeSeconds.innerHTML = "00";
         timecodeMS.innerHTML = "000";
-        clipLength.innerHTML = "0.000s";
+        clipLength.innerHTML = "00:00:00.000";
 
         infoElapsed.innerHTML   = "+00:00:00.000";
         infoRemaining.innerHTML = "-00:00:00.000";
-        infoTotal.innerHTML     = "0.000s";
+        infoTotal.innerHTML     = "00:00:00.000";
 
         table.style.color = "#ff4545";
         tableBorder.style.borderColor = "#ff4545";
@@ -78,11 +78,11 @@ function main(){
         timecodeMinutes.innerHTML = "00";
         timecodeSeconds.innerHTML = "00";
         timecodeMS.innerHTML = "000";
-        clipLength.innerHTML = "0.000s";
+        clipLength.innerHTML = "00:00:00.000";
 
         infoElapsed.innerHTML   = "+00:00:00.000";
         infoRemaining.innerHTML = "-00:00:00.000";
-        infoTotal.innerHTML     = "0.000s";
+        infoTotal.innerHTML     = "00:00:00.000";
     }
 
     async function procMsg(data) {
@@ -108,8 +108,8 @@ function main(){
         // Legacy settings panel clip length
         clipLength.innerHTML = lengthStr;
 
-        // Info panel
-        infoElapsed.innerHTML   = elapsedStr  !== undefined ? elapsedStr  : "+00:00:00.000";
+        // Info panel — all three now in HH:MM:SS.mmm format
+        infoElapsed.innerHTML   = elapsedStr !== undefined ? elapsedStr : "+00:00:00.000";
         infoRemaining.innerHTML = remainStr;
         infoTotal.innerHTML     = lengthStr;
 
