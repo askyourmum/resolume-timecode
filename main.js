@@ -28,6 +28,23 @@ function main(){
     const statusLabel = document.getElementById("status");
     const message = document.getElementById("msg");
 
+    // New elements
+    const systemClock   = document.getElementById("system-clock");
+    const infoElapsed   = document.getElementById("info-elapsed");
+    const infoRemaining = document.getElementById("info-remaining");
+    const infoTotal     = document.getElementById("info-total");
+
+    // System clock — ticks every second, independent of OSC
+    function tickClock() {
+        const now = new Date();
+        const hh  = String(now.getHours()).padStart(2, '0');
+        const mm  = String(now.getMinutes()).padStart(2, '0');
+        const ss  = String(now.getSeconds()).padStart(2, '0');
+        systemClock.innerHTML = hh + ':' + mm + ':' + ss;
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
     reset();
     osc.open();
 
@@ -39,6 +56,10 @@ function main(){
         timecodeSeconds.innerHTML = "00";
         timecodeMS.innerHTML = "000";
         clipLength.innerHTML = "0.000s";
+
+        infoElapsed.innerHTML   = "+00:00:00.000";
+        infoRemaining.innerHTML = "-00:00:00.000";
+        infoTotal.innerHTML     = "0.000s";
 
         table.style.color = "#ff4545";
         tableBorder.style.borderColor = "#ff4545";
@@ -58,6 +79,10 @@ function main(){
         timecodeSeconds.innerHTML = "00";
         timecodeMS.innerHTML = "000";
         clipLength.innerHTML = "0.000s";
+
+        infoElapsed.innerHTML   = "+00:00:00.000";
+        infoRemaining.innerHTML = "-00:00:00.000";
+        infoTotal.innerHTML     = "0.000s";
     }
 
     async function procMsg(data) {
@@ -75,15 +100,28 @@ function main(){
     }
 
     function procTime(data) {
-        clipLength.innerHTML = data.args[1];
+        // args: [0]=remaining string, [1]=clip length string, [2]=elapsed string, [3]=clip length float
+        const remainStr  = data.args[0];  // e.g. "-00:01:23.456"
+        const lengthStr  = data.args[1];  // e.g. "83.456s"
+        const elapsedStr = data.args[2];  // e.g. "+00:00:12.000"
+        const lengthSecs = data.args[3];  // float seconds
 
-        data = data.args[0].split(":");
-        timecodeHours.innerHTML = data[0].substring(1);
-        timecodeMinutes.innerHTML = data[1];
-        timecodeSeconds.innerHTML = data[2].split(".")[0];
-        timecodeMS.innerHTML = data[2].split(".")[1];
+        // Legacy settings panel clip length
+        clipLength.innerHTML = lengthStr;
 
-        if (parseInt(data[2]) <= 10 && parseInt(data[1]) < 1 && parseInt(data[0].substring(1)) < 1) {
+        // Info panel
+        infoElapsed.innerHTML   = elapsedStr;
+        infoRemaining.innerHTML = remainStr;
+        infoTotal.innerHTML     = lengthStr;
+
+        // Main timecode display (remaining, same as before)
+        const parts = remainStr.split(":");
+        timecodeHours.innerHTML   = parts[0].substring(1);      // strip leading '-'
+        timecodeMinutes.innerHTML = parts[1];
+        timecodeSeconds.innerHTML = parts[2].split(".")[0];
+        timecodeMS.innerHTML      = parts[2].split(".")[1];
+
+        if (parseInt(parts[2]) <= 10 && parseInt(parts[1]) < 1 && parseInt(parts[0].substring(1)) < 1) {
             table.style.color = "#ff4545";
             tableBorder.style.borderColor = "#ff4545";
         } else {

@@ -12,7 +12,8 @@ var (
 	clipName         = ""
 	directionForward = true
 
-	timeLeft string
+	timeLeft    string
+	timeElapsed string
 
 	clipLength float32
 	posPrev    float32
@@ -94,12 +95,18 @@ func procPos(data *osc.Message) {
 		pos = 1 - pos
 	}
 
-	t := (clipLength * 1000) * (1 - pos)
-
-	timeActual := time.UnixMilli(int64(t)).UTC()
-
+	// remaining time (from original logic)
+	tRemaining := (clipLength * 1000) * (1 - pos)
+	timeActual := time.UnixMilli(int64(tRemaining)).UTC()
 	timeLeft = fmt.Sprintf("-%02d:%02d:%02d.%03d", timeActual.Hour(), timeActual.Minute(), timeActual.Second(), timeActual.Nanosecond()/1000000)
-	broadcast.Publish(osc.NewMessage("/time", timeLeft, fmt.Sprintf("%.3fs", clipLength)))
+
+	// elapsed time
+	tElapsed := (clipLength * 1000) * pos
+	timeElapsedActual := time.UnixMilli(int64(tElapsed)).UTC()
+	timeElapsed = fmt.Sprintf("+%02d:%02d:%02d.%03d", timeElapsedActual.Hour(), timeElapsedActual.Minute(), timeElapsedActual.Second(), timeElapsedActual.Nanosecond()/1000000)
+
+	// broadcast: arg0=remaining, arg1=clip length string, arg2=elapsed, arg3=clip length seconds (float)
+	broadcast.Publish(osc.NewMessage("/time", timeLeft, fmt.Sprintf("%.3fs", clipLength), timeElapsed, clipLength))
 	broadcast.Send()
 
 	//fmt.Println(message, clipLength, samples, pos, currentPosInterval, currentTimeInterval, currentEstSize, posInterval, timeInterval, average(estSizeBuffer))
