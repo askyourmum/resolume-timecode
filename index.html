@@ -12,25 +12,48 @@
     <style>
         * { box-sizing: border-box; }
 
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             background-color: #000000;
             color: #FDFBF7;
             font-family: 'Roboto Mono', monospace;
             font-size: 1em;
             text-align: center;
-            margin: 0;
-            padding: 0;
+            /* centre the card wrapper both axes */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
         }
 
         a { color: #2494ff; }
         label { margin-right: 1em; }
+
+        /* ── Wrapper keeps card + clip name together and centred ── */
+        #main-wrapper {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: stretch;
+            width: 80vw;
+            max-width: 1200px;
+        }
 
         /* ── Clip Name (above card) ── */
         #clip-name-row {
             padding: 0.4em 1em 0.2em;
             cursor: ns-resize;
             user-select: none;
-            line-height: 1.2;
+            line-height: 1.4;
+            text-align: center;
+            /* scale from text centre */
+            transform-origin: center center;
+            transition: transform 0.08s ease;
         }
         #clip-name-row .row-label { color: #888; font-weight: 400; }
         #clip-name-row .row-value { color: #ffffff; font-weight: 600; }
@@ -40,20 +63,21 @@
             border: 6px solid #4b5457;
             border-radius: 40px;
             background-color: #111417;
-            margin: 0.4em 2em 1em;
             padding: 0.6em 0 0.8em;
-            overflow: hidden;
+            /* no fixed width — stretches with wrapper */
         }
 
         /* ── Info rows inside card ── */
         .info-row {
             display: flex;
-            align-items: baseline;
+            align-items: center;
             justify-content: center;
             padding: 0.15em 1.5em;
             cursor: ns-resize;
             user-select: none;
-            line-height: 1.15;
+            /* scale from text centre */
+            transform-origin: center center;
+            transition: transform 0.08s ease;
         }
         .info-row:hover { background: rgba(255,255,255,0.03); }
 
@@ -62,14 +86,16 @@
             color: #888888;
             font-weight: 400;
             white-space: nowrap;
-            min-width: 9em;
+            width: 9em;
             padding-right: 0.8em;
+            /* label uses a fixed smaller base size; JS scales the whole row */
+            font-size: 0.55em;
         }
         .row-value {
             text-align: left;
             font-weight: 100;
             letter-spacing: 0.04em;
-            min-width: 12em;
+            width: 12em;
         }
 
         .elapsed-value  { color: #45aaff; }
@@ -77,13 +103,14 @@
         .total-value    { color: #aaaaaa; }
         .clock-value    { color: #aaaaaa; }
 
-        /* scroll hint tooltip */
-        .info-row:hover::after {
+        /* scroll hint */
+        .info-row:hover::after, #clip-name-row:hover::after {
             content: '↕ scroll to resize';
-            font-size: 0.65em;
+            font-size: 0.55em;
             color: #555;
-            margin-left: 1em;
+            margin-left: 1.2em;
             font-weight: 400;
+            white-space: nowrap;
         }
 
         /* ── Settings panel ── */
@@ -97,28 +124,30 @@
 
 <body>
 
-<!-- Clip Name — outside and above the card -->
-<div id="clip-name-row" data-key="clipname">
-    <span class="row-label">Clip Name: </span><span class="row-value" id="clipname">None</span>
-</div>
+<div id="main-wrapper">
+    <!-- Clip Name — outside and above the card -->
+    <div id="clip-name-row" data-key="clipname">
+        <span class="row-label">Clip </span><span class="row-value" id="clipname">None</span>
+    </div>
 
-<!-- Main card -->
-<div id="tableborder">
-    <div class="info-row" data-key="elapsed">
-        <span class="row-label">Elapsed</span>
-        <span class="row-value elapsed-value" id="info-elapsed">+00:00:00.000</span>
-    </div>
-    <div class="info-row" data-key="remaining">
-        <span class="row-label">Remaining</span>
-        <span class="row-value remain-value" id="info-remaining">-00:00:00.000</span>
-    </div>
-    <div class="info-row" data-key="total">
-        <span class="row-label">Clip Length</span>
-        <span class="row-value total-value" id="info-total">00:00:00.000</span>
-    </div>
-    <div class="info-row" data-key="clock">
-        <span class="row-label">System Time</span>
-        <span class="row-value clock-value" id="system-clock">--:--:--</span>
+    <!-- Main card -->
+    <div id="tableborder">
+        <div class="info-row" data-key="elapsed">
+            <span class="row-label">Elapsed</span>
+            <span class="row-value elapsed-value" id="info-elapsed">+00:00:00.000</span>
+        </div>
+        <div class="info-row" data-key="remaining">
+            <span class="row-label">Remaining</span>
+            <span class="row-value remain-value" id="info-remaining">-00:00:00.000</span>
+        </div>
+        <div class="info-row" data-key="total">
+            <span class="row-label">Clip Length</span>
+            <span class="row-value total-value" id="info-total">00:00:00.000</span>
+        </div>
+        <div class="info-row" data-key="clock">
+            <span class="row-label">System Time</span>
+            <span class="row-value clock-value" id="system-clock">--:--:--</span>
+        </div>
     </div>
 </div>
 
@@ -143,72 +172,77 @@
 <script src="main.js" type="module"></script>
 <script type="text/javascript">
 
-    // ── Default font sizes in vw ──
+    // ── Default scale multipliers (1.0 = base size) ──
+    // Base font size for each row is set in CSS via font-size on .row-value (3vw).
+    // We use CSS transform:scale() so the text always grows from its own centre.
     const DEFAULTS = {
-        clipname:  3.5,
-        elapsed:   5.0,
-        remaining: 5.0,
-        total:     3.5,
-        clock:     3.5,
+        clipname:  1.0,
+        elapsed:   1.5,
+        remaining: 1.5,
+        total:     1.0,
+        clock:     1.0,
     };
 
-    // Min / max clamps in vw
-    const MIN_VW = 1.0;
-    const MAX_VW = 18.0;
+    // Base vw for each row's .row-value font-size (set via CSS initially)
+    const BASE_VW = 3.0;  // all rows share the same base font-size in CSS
 
-    // Load saved sizes from localStorage, fall back to defaults
-    const sizes = {};
+    const MIN_SCALE = 0.3;
+    const MAX_SCALE = 6.0;
+    const STEP      = 0.08;
+
+    // Load saved scales from localStorage
+    const scales = {};
     for (const key in DEFAULTS) {
-        const saved = localStorage.getItem('row-size-' + key);
-        sizes[key] = saved !== null ? parseFloat(saved) : DEFAULTS[key];
+        const saved = localStorage.getItem('row-scale-' + key);
+        scales[key] = saved !== null ? parseFloat(saved) : DEFAULTS[key];
     }
 
-    // Map data-key → the element(s) whose font-size we control
-    // For clipname row, we set on the whole row div.
-    // For others, we set on .row-label and .row-value separately (label = 60% of value).
-    function applySize(key) {
-        const vw = sizes[key];
-        if (key === 'clipname') {
-            const row = document.getElementById('clip-name-row');
-            row.style.fontSize = vw + 'vw';
-        } else {
-            const row = document.querySelector(`.info-row[data-key="${key}"]`);
-            if (!row) return;
-            row.querySelector('.row-label').style.fontSize = (vw * 0.6) + 'vw';
-            row.querySelector('.row-value').style.fontSize = vw + 'vw';
-        }
-        localStorage.setItem('row-size-' + key, vw);
+    // Apply scale via CSS transform — origin is centre of the element
+    function applyScale(key) {
+        const s = scales[key];
+        const el = key === 'clipname'
+            ? document.getElementById('clip-name-row')
+            : document.querySelector(`.info-row[data-key="${key}"]`);
+        if (!el) return;
+        el.style.transform = `scale(${s})`;
+        // Push adjacent rows away by adjusting vertical margin based on scale
+        // Row natural height ≈ BASE_VW * 1.4vw; extra space needed = (scale-1) * half-height
+        const naturalH = BASE_VW * 1.4 / 100 * window.innerWidth; // px
+        const extra = (s - 1) * naturalH * 0.5;
+        el.style.marginTop    = extra + 'px';
+        el.style.marginBottom = extra + 'px';
+        localStorage.setItem('row-scale-' + key, s);
     }
 
     // Apply all on load
-    for (const key in sizes) applySize(key);
+    for (const key in scales) applyScale(key);
+    // Re-apply on resize so margin px values stay accurate
+    window.addEventListener('resize', () => { for (const key in scales) applyScale(key); });
 
-    // Scroll handler — attach to all scrollable rows
+    // Scroll handler
     function onRowWheel(e) {
         e.preventDefault();
         const key = e.currentTarget.dataset.key;
-        if (!key || !(key in sizes)) return;
-        // deltaY > 0 = scroll down = shrink; < 0 = scroll up = grow
-        const delta = e.deltaY > 0 ? -0.2 : 0.2;
-        sizes[key] = Math.min(MAX_VW, Math.max(MIN_VW, sizes[key] + delta));
-        applySize(key);
+        if (!key || !(key in scales)) return;
+        const delta = e.deltaY > 0 ? -STEP : STEP;
+        scales[key] = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scales[key] + delta));
+        applyScale(key);
     }
 
-    // Attach wheel listeners
     document.querySelectorAll('.info-row, #clip-name-row').forEach(row => {
         row.addEventListener('wheel', onRowWheel, { passive: false });
     });
 
     function resetSizes() {
         for (const key in DEFAULTS) {
-            sizes[key] = DEFAULTS[key];
-            applySize(key);
+            scales[key] = DEFAULTS[key];
+            applyScale(key);
         }
     }
 
     function updatePadding() {
         const padding = document.getElementById('padding').value;
-        document.getElementById('clip-name-row').style.paddingTop = padding + 'em';
+        document.getElementById('main-wrapper').style.marginTop = padding + 'em';
     }
 
     updatePadding();
