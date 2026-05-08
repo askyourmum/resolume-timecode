@@ -60,9 +60,9 @@ changelog:
       - '^tests?:'
 release:
   github:
-    owner: chabad360
+    owner: askyourmum
     name: resolume-timecode
-  draft: true
+  draft: false
   prerelease: auto
 archives:
   - id: darwin
