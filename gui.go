@@ -4,6 +4,10 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"html/template"
+	"runtime"
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/data/binding"
@@ -12,8 +16,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/chabad360/go-osc/osc"
-	"html/template"
-	"runtime"
 )
 
 var (
@@ -118,7 +120,7 @@ func gui() {
 	resetButton := widget.NewButton("Reset Timecode", reset)
 	resetButton.Hide()
 
-	path := widget.NewSelectEntry([]string{"", "/composition/selectedclip", "/composition/layers/1/clips/1", "/composition/selectedlayer", "/composition/layers/1"})
+	path := widget.NewSelectEntry([]string{"", "/composition/connectedclip", "/composition/selectedclip", "/composition/layers/1/clips/1", "/composition/selectedlayer", "/composition/layers/1"})
 	path.SetText(clipPath)
 	path.SetPlaceHolder("Path to clip (/composition/...)")
 	path.Validator = validation.NewRegexp(`^[^\?\,\[\]\{\}\#\s]+$`, "not a valid OSC path")
@@ -173,6 +175,8 @@ func gui() {
 	form.OnSubmit = func() {
 		clipPath = path.Text
 		a.Preferences().SetString("clipPath", clipPath)
+		// Enable auto-track when user selects the connectedclip path
+		autoTrackOutput = strings.HasSuffix(clipPath, "/connectedclip")
 		OSCOutPort = oscOutput.Text
 		a.Preferences().SetString("OSCOutPort", OSCOutPort)
 		OSCPort = oscInput.Text

@@ -17,9 +17,38 @@ var (
 
 	clipLength float32
 	posPrev    float32
+
+	// autoTrackOutput: when true, procMsg will switch clipPath to whichever
+	// clip sends /connected = 1, so we always follow the live output clip.
+	// Enabled automatically when the configured path ends with "/connectedclip".
+	autoTrackOutput = false
 )
 
 func procMsg(data *osc.Message) {
+	// Auto-track output: when enabled, watch ALL clips for /connected=1
+	// and switch clipPath to that clip so we follow the live output.
+	if autoTrackOutput && strings.HasSuffix(data.Address, "/connected") {
+		if len(data.Arguments) > 0 {
+			var connected int32
+			switch v := data.Arguments[0].(type) {
+			case int32:
+				connected = v
+			case float32:
+				connected = int32(v)
+			}
+			if connected == 1 {
+				// Address is e.g. /composition/layers/2/clips/3/connected
+				// Strip the trailing /connected to get the clip base path
+				newPath := strings.TrimSuffix(data.Address, "/connected")
+				if newPath != clipPath {
+					clipPath = newPath
+					reset()
+					lightReset()
+				}
+			}
+		}
+	}
+
 	if strings.HasPrefix(data.Address, clipPath) {
 		switch {
 		case strings.HasSuffix(data.Address, "/position"):
