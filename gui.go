@@ -177,8 +177,6 @@ func gui() {
 		a.Preferences().SetString("clipPath", clipPath)
 		// Enable auto-track when user selects the connectedclip path
 		autoTrackOutput = strings.HasSuffix(clipPath, "/connectedclip")
-		// Enable same-layer-only tracking for selectedclip mode
-		sameLayerTrack = strings.HasSuffix(clipPath, "/selectedclip")
 		OSCOutPort = oscOutput.Text
 		a.Preferences().SetString("OSCOutPort", OSCOutPort)
 		OSCPort = oscInput.Text

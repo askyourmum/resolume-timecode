@@ -16,36 +16,18 @@ var (
 	timeElapsed string
 	timeTotal   string
 
-	clipLength   float32
-	posPrev      float32
-	clipSwitched = false // true for one cycle after a path switch in auto-track mode
+	clipLength float32
+	posPrev    float32
 
 	// autoTrackOutput: when true, procMsg will switch clipPath to whichever
 	// clip sends /connected = 1, so we always follow the live output clip.
 	// Enabled automatically when the configured path ends with "/connectedclip".
 	autoTrackOutput = false
-
-	// sameLayerTrack: when true, /select events only switch clipPath when
-	// the newly selected clip is on the same layer as the current clip.
-	// Enabled when the configured path ends with "/selectedclip" (default selected-clip mode).
-	sameLayerTrack = false
 )
 
-// layerNum extracts the layer number string from an OSC clip path.
-// e.g. "/composition/layers/2/clips/3" → "2", or "" if not parseable.
-func layerNum(path string) string {
-	// path format: /composition/layers/N/clips/M
-	parts := strings.Split(path, "/")
-	for i, p := range parts {
-		if p == "layers" && i+1 < len(parts) {
-			return parts[i+1]
-		}
-	}
-	return ""
-}
-
 func procMsg(data *osc.Message) {
-	// Auto-track output mode: watch all /connected=1 messages.
+	// Auto-track output: when enabled, watch ALL clips for /connected=1
+	// and switch clipPath to that clip so we follow the live output.
 	if autoTrackOutput && strings.HasSuffix(data.Address, "/connected") {
 		if len(data.Arguments) > 0 {
 			var connected int32
@@ -56,33 +38,16 @@ func procMsg(data *osc.Message) {
 				connected = int32(v)
 			}
 			if connected == 1 {
+				// Address is e.g. /composition/layers/2/clips/3/connected
+				// Strip the trailing /connected to get the clip base path
 				newPath := strings.TrimSuffix(data.Address, "/connected")
 				if newPath != clipPath {
 					clipPath = newPath
-					clipSwitched = true
+					reset()
 					lightReset()
 				}
 			}
 		}
-	}
-
-	// Same-layer track mode: intercept /select on any clip path.
-	// Always reset the timer on any grid selection so the display clears.
-	// Only switch clipPath (i.e. start tracking the new clip) if it is
-	// on the same layer as the current clip — cross-layer fires reset
-	// the timer but do not change which clip is being tracked.
-	if sameLayerTrack && strings.Contains(data.Address, "/clips/") && strings.HasSuffix(data.Address, "/select") {
-		newClipPath := strings.TrimSuffix(data.Address, "/select")
-		currentLayer := layerNum(clipPath)
-		newLayer := layerNum(newClipPath)
-		if currentLayer == "" || currentLayer == newLayer {
-			// Same layer — switch tracking to the new clip and reset
-			clipPath = newClipPath
-			clipSwitched = true
-		}
-		// Always reset regardless of layer — clears the display on any grid click
-		reset()
-		return
 	}
 
 	if strings.HasPrefix(data.Address, clipPath) {
@@ -96,13 +61,9 @@ func procMsg(data *osc.Message) {
 		case strings.HasSuffix(data.Address, "/duration"):
 			procDuration(data)
 		case strings.HasSuffix(data.Address, "/connect"):
-			if !autoTrackOutput && !sameLayerTrack {
-				reset()
-			}
+			reset()
 		case strings.Contains(data.Address, "/select"):
-			if !autoTrackOutput && !sameLayerTrack {
-				reset()
-			}
+			reset()
 		}
 	}
 }
@@ -120,14 +81,10 @@ func procName(data *osc.Message) {
 	broadcast.Publish(osc.NewMessage("/name", clipName))
 }
 
-func secsToHMS(secs float32) string {
-	t := time.UnixMilli(int64(secs * 1000)).UTC()
-	return fmt.Sprintf("%02d:%02d:%02d.%03d", t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1000000)
-}
-
 func procDuration(data *osc.Message) {
 	clipLength = (data.Arguments[0].(float32) * 604800) + 0.001
-	timeTotal = secsToHMS(clipLength)
+	t := time.UnixMilli(int64(clipLength * 1000)).UTC()
+	timeTotal = fmt.Sprintf("%02d:%02d:%02d.%03d", t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1000000)
 	clipLengthBinding.Set(fmt.Sprintf("Clip Length: %s", timeTotal))
 	broadcast.Publish(osc.NewMessage("/duration", clipLength))
 }
@@ -153,21 +110,15 @@ func procPos(data *osc.Message) {
 		pos = 1 - pos
 	}
 
-	// On a clip switch, bypass the stale-position guards for one cycle
-	// so the new clip's first position update is never dropped.
-	if clipSwitched {
-		clipSwitched = false
+	if posPrev == 0 || posPrev == pos || pos < 0.002 {
 		posPrev = pos
-		// fall through to calculate and broadcast
-	} else {
-		if posPrev == 0 || posPrev == pos || pos < 0.002 {
-			posPrev = pos
-			return
-		}
-		currentPosInterval := pos - posPrev
-		if currentPosInterval < 0 && posPrev > 0 {
-			return
-		}
+		return
+	}
+
+	currentPosInterval := pos - posPrev
+
+	if currentPosInterval < 0 && posPrev > 0 {
+		return
 	}
 
 	posPrev = pos

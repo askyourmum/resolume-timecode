@@ -108,8 +108,8 @@ function main(){
         // Legacy settings panel clip length
         clipLength.innerHTML = lengthStr;
 
-        // Info panel — all three now in HH:MM:SS.mmm format
-        infoElapsed.innerHTML   = elapsedStr !== undefined ? elapsedStr : "+00:00:00.000";
+        // Info panel
+        infoElapsed.innerHTML   = elapsedStr  !== undefined ? elapsedStr  : "+00:00:00.000";
         infoRemaining.innerHTML = remainStr;
         infoTotal.innerHTML     = lengthStr;
 
