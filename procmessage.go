@@ -15,8 +15,9 @@ var (
 	timeLeft    string
 	timeElapsed string
 
-	clipLength float32
-	posPrev    float32
+	clipLength  float32
+	posPrev     float32
+	clipSwitched = false // true for one cycle after a path switch in auto-track mode
 
 	// autoTrackOutput: when true, procMsg will switch clipPath to whichever
 	// clip sends /connected = 1, so we always follow the live output clip.
@@ -26,7 +27,9 @@ var (
 
 func procMsg(data *osc.Message) {
 	// Auto-track output: when enabled, watch ALL clips for /connected=1
-	// and switch clipPath to that clip so we follow the live output.
+	// and switch clipPath to that clip so we always follow the live output.
+	// On a crossfade/jump, we do NOT reset posPrev — we just swap the path
+	// and re-query name+duration so the timer transitions cleanly.
 	if autoTrackOutput && strings.HasSuffix(data.Address, "/connected") {
 		if len(data.Arguments) > 0 {
 			var connected int32
@@ -38,11 +41,13 @@ func procMsg(data *osc.Message) {
 			}
 			if connected == 1 {
 				// Address is e.g. /composition/layers/2/clips/3/connected
-				// Strip the trailing /connected to get the clip base path
 				newPath := strings.TrimSuffix(data.Address, "/connected")
 				if newPath != clipPath {
 					clipPath = newPath
-					reset()
+					clipSwitched = true // skip the posPrev==pos guard for one cycle
+					// Re-query name and duration for the new clip.
+					// Do NOT reset posPrev — position updates from the new
+					// clip arrive immediately and must not be dropped.
 					lightReset()
 				}
 			}
@@ -60,9 +65,20 @@ func procMsg(data *osc.Message) {
 		case strings.HasSuffix(data.Address, "/duration"):
 			procDuration(data)
 		case strings.HasSuffix(data.Address, "/connect"):
-			reset()
+			// Only reset on /connect when NOT in auto-track mode.
+			// In auto-track mode the /connected handler above already
+			// manages clip switches — resetting here would blank the
+			// timer mid-crossfade.
+			if !autoTrackOutput {
+				reset()
+			}
 		case strings.Contains(data.Address, "/select"):
-			reset()
+			// Suppress /select resets in auto-track mode — clicking a clip
+			// in the arena grid while another plays to output must not
+			// blank the timer.
+			if !autoTrackOutput {
+				reset()
+			}
 		}
 	}
 }
@@ -107,15 +123,21 @@ func procPos(data *osc.Message) {
 		pos = 1 - pos
 	}
 
-	if posPrev == 0 || posPrev == pos || pos < 0.002 {
+	// On a clip switch, bypass the stale-position guards for one cycle
+	// so the new clip's first position update is never dropped.
+	if clipSwitched {
+		clipSwitched = false
 		posPrev = pos
-		return
-	}
-
-	currentPosInterval := pos - posPrev
-
-	if currentPosInterval < 0 && posPrev > 0 {
-		return
+		// fall through to calculate and broadcast
+	} else {
+		if posPrev == 0 || posPrev == pos || pos < 0.002 {
+			posPrev = pos
+			return
+		}
+		currentPosInterval := pos - posPrev
+		if currentPosInterval < 0 && posPrev > 0 {
+			return
+		}
 	}
 
 	posPrev = pos
