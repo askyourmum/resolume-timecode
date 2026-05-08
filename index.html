@@ -24,7 +24,6 @@
             font-family: 'Roboto Mono', monospace;
             font-size: 1em;
             text-align: center;
-            /* centre the card wrapper both axes */
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -40,20 +39,15 @@
             display: inline-flex;
             flex-direction: column;
             align-items: stretch;
-            width: 80vw;
-            max-width: 1200px;
         }
 
         /* ── Clip Name (above card) ── */
         #clip-name-row {
             padding: 0.4em 1em 0.2em;
-            cursor: ns-resize;
             user-select: none;
             line-height: 1.4;
             text-align: center;
-            /* scale from text centre */
-            transform-origin: center center;
-            transition: transform 0.08s ease;
+            cursor: ew-resize;
         }
         #clip-name-row .row-label { color: #888; font-weight: 400; }
         #clip-name-row .row-value { color: #ffffff; font-weight: 600; }
@@ -64,7 +58,8 @@
             border-radius: 40px;
             background-color: #111417;
             padding: 0.6em 0 0.8em;
-            /* no fixed width — stretches with wrapper */
+            cursor: ew-resize;
+            user-select: none;
         }
 
         /* ── Info rows inside card ── */
@@ -73,11 +68,8 @@
             align-items: center;
             justify-content: center;
             padding: 0.15em 1.5em;
-            cursor: ns-resize;
+            cursor: ew-resize;
             user-select: none;
-            /* scale from text centre */
-            transform-origin: center center;
-            transition: transform 0.08s ease;
         }
         .info-row:hover { background: rgba(255,255,255,0.03); }
 
@@ -88,7 +80,6 @@
             white-space: nowrap;
             width: 9em;
             padding-right: 0.8em;
-            /* label uses a fixed smaller base size; JS scales the whole row */
             font-size: 0.55em;
         }
         .row-value {
@@ -103,14 +94,23 @@
         .total-value    { color: #aaaaaa; }
         .clock-value    { color: #aaaaaa; }
 
-        /* scroll hint */
+        /* drag hint */
         .info-row:hover::after, #clip-name-row:hover::after {
-            content: '↕ scroll to resize';
+            content: '↔ drag to resize';
             font-size: 0.55em;
             color: #555;
             margin-left: 1.2em;
             font-weight: 400;
             white-space: nowrap;
+        }
+        #tableborder:hover::after {
+            content: '↔ drag to scale all';
+            font-size: 0.6em;
+            color: #444;
+            display: block;
+            text-align: center;
+            margin-top: 0.3em;
+            font-weight: 400;
         }
 
         /* ── Settings panel ── */
@@ -172,72 +172,136 @@
 <script src="main.js" type="module"></script>
 <script type="text/javascript">
 
-    // ── Default scale multipliers (1.0 = base size) ──
-    // Base font size for each row is set in CSS via font-size on .row-value (3vw).
-    // We use CSS transform:scale() so the text always grows from its own centre.
+    // ── Per-row font sizes in vw ──
+    // Each row's .row-value font-size is set directly in vw via JS.
+    // No transform:scale — rows naturally expand/contract in the layout.
     const DEFAULTS = {
-        clipname:  1.0,
-        elapsed:   1.5,
-        remaining: 1.5,
-        total:     1.0,
-        clock:     1.0,
+        clipname:  3.0,
+        elapsed:   4.5,
+        remaining: 4.5,
+        total:     3.0,
+        clock:     3.0,
     };
 
-    // Base vw for each row's .row-value font-size (set via CSS initially)
-    const BASE_VW = 3.0;  // all rows share the same base font-size in CSS
+    // Global scale multiplier applied on top of all individual row sizes
+    let globalScale = parseFloat(localStorage.getItem('global-scale') || '1.0');
 
-    const MIN_SCALE = 0.3;
-    const MAX_SCALE = 6.0;
-    const STEP      = 0.08;
+    const MIN_VW    = 0.5;
+    const MAX_VW    = 20.0;
+    const DRAG_SENS = 0.04; // vw per px of horizontal drag
 
-    // Load saved scales from localStorage
-    const scales = {};
+    // Load saved per-row vw values
+    const sizes = {};
     for (const key in DEFAULTS) {
-        const saved = localStorage.getItem('row-scale-' + key);
-        scales[key] = saved !== null ? parseFloat(saved) : DEFAULTS[key];
+        const saved = localStorage.getItem('row-vw-' + key);
+        sizes[key] = saved !== null ? parseFloat(saved) : DEFAULTS[key];
     }
 
-    // Apply scale via CSS transform — origin is centre of the element
-    function applyScale(key) {
-        const s = scales[key];
-        const el = key === 'clipname'
+    // Return the DOM element for a row key
+    function rowEl(key) {
+        return key === 'clipname'
             ? document.getElementById('clip-name-row')
             : document.querySelector(`.info-row[data-key="${key}"]`);
+    }
+
+    // Apply font-size in vw to .row-value (and proportionally to .row-label) for a row
+    function applySize(key) {
+        const el = rowEl(key);
         if (!el) return;
-        el.style.transform = `scale(${s})`;
-        // Push adjacent rows away by adjusting vertical margin based on scale
-        // Row natural height ≈ BASE_VW * 1.4vw; extra space needed = (scale-1) * half-height
-        const naturalH = BASE_VW * 1.4 / 100 * window.innerWidth; // px
-        const extra = (s - 1) * naturalH * 0.5;
-        el.style.marginTop    = extra + 'px';
-        el.style.marginBottom = extra + 'px';
-        localStorage.setItem('row-scale-' + key, s);
+        const vw = Math.min(MAX_VW, Math.max(MIN_VW, sizes[key] * globalScale));
+        const valueEl = el.querySelector('.row-value');
+        if (valueEl) valueEl.style.fontSize = vw + 'vw';
+        // label stays at 55% of value size
+        const labelEl = el.querySelector('.row-label');
+        if (labelEl) labelEl.style.fontSize = (vw * 0.55) + 'vw';
+        localStorage.setItem('row-vw-' + key, sizes[key]);
     }
 
-    // Apply all on load
-    for (const key in scales) applyScale(key);
-    // Re-apply on resize so margin px values stay accurate
-    window.addEventListener('resize', () => { for (const key in scales) applyScale(key); });
-
-    // Scroll handler
-    function onRowWheel(e) {
-        e.preventDefault();
-        const key = e.currentTarget.dataset.key;
-        if (!key || !(key in scales)) return;
-        const delta = e.deltaY > 0 ? -STEP : STEP;
-        scales[key] = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scales[key] + delta));
-        applyScale(key);
+    function applyAll() {
+        for (const key in sizes) applySize(key);
+        localStorage.setItem('global-scale', globalScale);
     }
 
-    document.querySelectorAll('.info-row, #clip-name-row').forEach(row => {
-        row.addEventListener('wheel', onRowWheel, { passive: false });
-    });
+    // Apply on load
+    applyAll();
+
+    // ── Horizontal drag to resize individual rows ──
+    (function () {
+        let dragging = null; // { key, startX, startSize }
+
+        function onMouseDown(e) {
+            // Don't start drag on settings panel children
+            if (e.target.closest('#settings-panel')) return;
+            const row = e.target.closest('.info-row, #clip-name-row');
+            if (!row) return;
+            const key = row.dataset.key;
+            if (!key || !(key in sizes)) return;
+            e.preventDefault();
+            dragging = { key, startX: e.clientX, startSize: sizes[key] };
+            document.body.style.cursor = 'ew-resize';
+        }
+
+        function onMouseMove(e) {
+            if (!dragging) return;
+            const dx = e.clientX - dragging.startX;
+            const newSize = dragging.startSize + dx * DRAG_SENS;
+            sizes[dragging.key] = Math.min(MAX_VW, Math.max(MIN_VW, newSize));
+            applySize(dragging.key);
+        }
+
+        function onMouseUp() {
+            if (!dragging) return;
+            localStorage.setItem('row-vw-' + dragging.key, sizes[dragging.key]);
+            dragging = null;
+            document.body.style.cursor = '';
+        }
+
+        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup',   onMouseUp);
+    })();
+
+    // ── Horizontal drag on card border = global scale ──
+    (function () {
+        let dragging = null; // { startX, startScale }
+
+        function isBorderOnly(e) {
+            // Only trigger when clicking directly on #tableborder, not on its children
+            return e.target.id === 'tableborder';
+        }
+
+        function onMouseDown(e) {
+            if (!isBorderOnly(e)) return;
+            e.preventDefault();
+            dragging = { startX: e.clientX, startScale: globalScale };
+            document.body.style.cursor = 'ew-resize';
+        }
+
+        function onMouseMove(e) {
+            if (!dragging) return;
+            const dx = e.clientX - dragging.startX;
+            // Global scale: each 100px = +/- 0.2 scale (gentler than per-row)
+            const newScale = dragging.startScale + dx * 0.002;
+            globalScale = Math.min(5.0, Math.max(0.1, newScale));
+            applyAll();
+        }
+
+        function onMouseUp() {
+            if (!dragging) return;
+            localStorage.setItem('global-scale', globalScale);
+            dragging = null;
+            document.body.style.cursor = '';
+        }
+
+        document.getElementById('tableborder').addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup',   onMouseUp);
+    })();
 
     function resetSizes() {
-        for (const key in DEFAULTS) {
-            scales[key] = DEFAULTS[key];
-            applyScale(key);
-        }
+        for (const key in DEFAULTS) sizes[key] = DEFAULTS[key];
+        globalScale = 1.0;
+        applyAll();
     }
 
     function updatePadding() {
